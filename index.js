@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const admin = require('firebase-admin');
 const { FireSQL } = require('firesql');
+const { executeCountCommand } = require('./count');
 
 // CLI configuration
 program
@@ -82,10 +83,11 @@ async function runCLI(projectId) {
   
   console.log('✅ FireSQL initialized successfully with Admin SDK!');
   console.log('🔓 Admin SDK bypasses Firestore security rules');
-  console.log('🆔 Document IDs are automatically included in all query results');
+  console.log('🆔 Document IDs are automatically included as "__name__" field in all query results');
   console.log('📜 Query history loaded - use ↑/↓ arrows to navigate past queries');
   console.log('💡 Type your FQL queries below. Type "exit" or "quit" to stop.');
   console.log('💡 Use "SETDOC <path>" to query a specific document/subcollection.');
+  console.log('💡 Use "COUNT <collection | subcollection path> [WHERE <conditions>]" to count documents.');
   console.log('💡 Use "HELP" to see available commands.\n');
   
   // Load query history
@@ -159,12 +161,38 @@ async function runCLI(projectId) {
       return;
     }
     
+    // Handle COUNT command
+    if (query.toUpperCase().startsWith('COUNT ')) {
+      try {
+        console.log('🔄 Executing COUNT query...');
+        const startTime = Date.now();
+        
+        const count = await executeCountCommand(query, db, currentDocRef);
+        
+        const endTime = Date.now();
+        const executionTime = endTime - startTime;
+        
+        // Save successful COUNT command to history
+        saveQueryToHistory(query);
+        
+        // Display count result
+        console.log(`📊 Count: ${count}`);
+        console.log(`⏱️  Query executed in ${executionTime}ms\n`);
+        
+      } catch (error) {
+        console.error('❌ COUNT Error:', error.message);
+        console.log('💡 Please check your COUNT syntax and try again.\n');
+      }
+      rl.prompt();
+      return;
+    }
+    
     try {
       // Execute the query with document ID included
       console.log('🔄 Executing query...');
       const startTime = Date.now();
       
-      const results = await fireSQL.query(query, { includeId: 'id' });
+      const results = await fireSQL.query(query, { includeId: true });
       
       const endTime = Date.now();
       const executionTime = endTime - startTime;
@@ -197,6 +225,11 @@ function showHelp(currentDocRef) {
   console.log('  SELECT field1, field2 FROM collection_name WHERE condition');
   console.log('  SELECT * FROM GROUP collection_name  (collection group query)');
   console.log('');
+  console.log('COUNT Commands:');
+  console.log('  COUNT FROM collection_name');
+  console.log('  COUNT FROM collection_name WHERE field = value');
+  console.log('  COUNT FROM collection_name WHERE field1 = value1 AND field2 > value2');
+  console.log('');
   console.log('Special Commands:');
   console.log('  SETDOC <path>     - Set document reference for subcollection queries');
   console.log('  RESET             - Reset to database-level queries');
@@ -204,7 +237,7 @@ function showHelp(currentDocRef) {
   console.log('  EXIT/QUIT         - Exit the CLI');
   console.log('');
   console.log('Features:');
-  console.log('  🆔 Document IDs automatically included as "id" field');
+  console.log('  🆔 Document IDs automatically included as "__name__" field');
   console.log('  🔓 Admin SDK bypasses all security rules');
   console.log('  📊 Formatted table output with timing');
   console.log('  📜 Query history - use ↑/↓ arrows to navigate past queries');
@@ -213,7 +246,10 @@ function showHelp(currentDocRef) {
   console.log('  SETDOC users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed');
   console.log('  SETDOC "users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed"');
   console.log('  SELECT * FROM challenges WHERE state = "active"');
-  console.log('  SELECT id, title, description FROM challenges LIMIT 5');
+  console.log('  SELECT __name__, title, description FROM challenges LIMIT 5');
+  console.log('  COUNT FROM users');
+  console.log('  COUNT FROM challenges WHERE state = "active"');
+  console.log('  COUNT FROM users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed WHERE type = "new_public_challenge"');
   console.log('');
   if (currentDocRef) {
     console.log(`📍 Current document reference: ${currentDocRef.path}`);

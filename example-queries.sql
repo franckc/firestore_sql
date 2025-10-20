@@ -7,6 +7,13 @@ SETDOC "users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed"
 RESET
 HELP
 
+-- COUNT Commands
+COUNT FROM users
+COUNT FROM challenges WHERE state = "active"
+COUNT FROM challenges WHERE state = "active" AND type = "public"
+COUNT FROM users WHERE firstName = "franck"
+COUNT FROM users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed WHERE type = "new_public_challenge"
+
 -- Basic queries
 SELECT * FROM users LIMIT 10
 

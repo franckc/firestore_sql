@@ -14,6 +14,7 @@ A simple command-line tool that allows you to query Google Cloud Firestore using
 - 🔓 **Firebase Admin SDK** - Bypasses Firestore security rules for full access
 - 🆔 **Document IDs included** - All queries automatically include document IDs as "id" field
 - 📜 **Query history** - Arrow key navigation through past successful queries
+- 🔢 **COUNT command** - Native Firestore aggregation queries for accurate counting
 
 ## Installation
 
@@ -124,6 +125,43 @@ Enter           - Execute the selected query
 - **Format**: One query per line, most recent first
 - **Automatic management** - No manual intervention needed
 
+## COUNT Command
+
+The CLI includes a native COUNT command that uses [Firestore's aggregation queries](https://firebase.google.com/docs/firestore/query-data/aggregation-queries#node.js) for accurate counting:
+
+### 🔢 **COUNT Syntax**
+```sql
+COUNT FROM <collection> [WHERE <conditions>]
+```
+
+### 📊 **Examples**
+```sql
+-- Count all documents in a collection
+COUNT FROM users
+
+-- Count with single condition
+COUNT FROM challenges WHERE state = "active"
+
+-- Count with multiple conditions
+COUNT FROM challenges WHERE state = "active" AND type = "public"
+
+-- Count subcollection documents (after SETDOC)
+SETDOC users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed
+COUNT FROM posts WHERE published = true
+```
+
+### 🎯 **Supported Operators**
+- **Equality**: `=`, `!=`
+- **Comparison**: `<`, `<=`, `>`, `>=`
+- **Array operations**: `IN`, `NOT IN`, `ARRAY_CONTAINS`, `ARRAY_CONTAINS_ANY`
+- **Logical**: `AND` (multiple conditions)
+
+### ⚡ **Performance Benefits**
+- **Native aggregation** - Uses Firestore's built-in count aggregation
+- **Efficient** - No need to fetch all documents to count them
+- **Accurate** - Server-side counting, not client-side approximation
+- **Fast** - Optimized for large datasets
+
 ## Usage
 
 ```bash
@@ -161,36 +199,40 @@ Alice Brown          | alice@example.com    | 28                 | Houston
 Charlie Wilson       | charlie@example.com  | 32                 | Phoenix          
 ────────────────────────────────────────────────────────────────────────────────
 
-SQL> SELECT name, age FROM users WHERE age > 30
+FQL> SELECT name, age FROM users WHERE age > 30
 🔄 Executing query...
 📊 Found 2 result(s) in 156ms
 ────────────────────────────────────────────────────────────────────────────────
-name                 | age                 
+id                   | name                 | age                 
 ────────────────────────────────────────────────────────────────────────────────
-Bob Johnson          | 35                 
-Charlie Wilson       | 32                 
+user456              | Bob Johnson          | 35                 
+user789              | Charlie Wilson       | 32                 
 ────────────────────────────────────────────────────────────────────────────────
 
-SQL> SETDOC users/P8RlU12un4UKc0cR1p5DHrtIpdu1
+FQL> COUNT FROM users
+🔄 Executing COUNT query...
+📊 Count: 21
+⏱️  Query executed in 829ms
+
+FQL> COUNT FROM challenges WHERE state = "active"
+🔄 Executing COUNT query...
+📊 Count: 16
+⏱️  Query executed in 106ms
+
+FQL> SETDOC users/P8RlU12un4UKc0cR1p5DHrtIpdu1
 📁 Document reference set to: users/P8RlU12un4UKc0cR1p5DHrtIpdu1
 💡 All subsequent queries will be executed against this document/subcollection.
 
-SQL> SELECT * FROM feed LIMIT 3
-🔄 Executing query...
-📊 Found 3 result(s) in 89ms
-────────────────────────────────────────────────────────────────────────────────
-title                | content             | createdAt           | published        
-────────────────────────────────────────────────────────────────────────────────
-My First Post        | Hello world!        | 2024-01-15          | true             
-Weekend Update       | Had a great time... | 2024-01-14          | true             
-Thoughts on Tech     | Technology is...    | 2024-01-13          | false            
-────────────────────────────────────────────────────────────────────────────────
+FQL> COUNT FROM feed WHERE type = "new_public_challenge"
+🔄 Executing COUNT query...
+📊 Count: 3
+⏱️  Query executed in 89ms
 
-SQL> RESET
+FQL> RESET
 🔄 Reset to database-level queries
 💡 All subsequent queries will be executed against the entire database.
 
-SQL> HELP
+FQL> HELP
 📚 Firestore SQL CLI Commands:
 ──────────────────────────────────────────────────
 SQL Queries:
@@ -206,7 +248,6 @@ Special Commands:
 
 Examples:
   SETDOC users/P8RlU12un4UKc0cR1p5DHrtIpdu1
-  SETDOC "users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed"
   SELECT * FROM feed
 
 📍 Current scope: Database-level queries
