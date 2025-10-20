@@ -1,6 +1,6 @@
 # Firestore SQL CLI
 
-A simple command-line tool that allows you to query Google Cloud Firestore using SQL syntax, powered by the [FireSQL](https://github.com/jsayol/firesql) library.
+A simple command-line tool that allows you to query Google Cloud Firestore using SQL syntax, powered by a custom SQL-to-Firestore translator.
 
 ## Features
 
@@ -21,10 +21,8 @@ A simple command-line tool that allows you to query Google Cloud Firestore using
 1. Clone or download this repository
 2. Install dependencies:
    ```bash
-   npm install --legacy-peer-deps
+   npm install
    ```
-   
-   **Note:** The `--legacy-peer-deps` flag is required due to dependency conflicts between FireSQL and Firebase versions.
 
 ## Setup
 
@@ -378,17 +376,15 @@ SQL> SELECT * FROM posts WHERE published = true
 
 ## Supported SQL Features
 
-Based on the FireSQL library, this tool supports:
+This custom SQL translator supports:
 
-- `SELECT` queries with `WHERE`, `ORDER BY`, `LIMIT`
-- Basic aggregations (`AVG`, `MIN`, `MAX`, `SUM`)
-- `GROUP BY` (with limitations)
-- `UNION` operations
-- `IN` and `BETWEEN` conditions
-- `LIKE` pattern matching (limited)
-- Nested object access using backticks
-- Array membership with `CONTAINS`
-- Collection group queries with `FROM GROUP collection_name`
+- `SELECT` queries with `WHERE`, `ORDER BY`
+- Field selection (`SELECT *` or `SELECT field1, field2`)
+- Multiple condition support with `AND` and `OR` operators
+- All comparison operators: `=`, `!=`, `>`, `>=`, `<`, `<=`
+- Automatic type detection (strings, numbers, timestamps, booleans)
+- Subcollection queries via `SETDOC` command
+- Document ID inclusion as `__name__` field
 
 ### Examples of supported queries:
 
@@ -396,38 +392,34 @@ Based on the FireSQL library, this tool supports:
 -- Basic select
 SELECT * FROM users
 
--- Filtering
+-- Field selection
 SELECT name, email FROM users WHERE age > 25
 
--- Ordering and limiting
-SELECT * FROM products ORDER BY price DESC LIMIT 10
+-- Ordering
+SELECT * FROM products ORDER BY price DESC
 
--- Aggregations
-SELECT category, AVG(price) FROM products GROUP BY category
+-- Multiple conditions with AND
+SELECT * FROM users WHERE firstname = 'franck' AND age > 25
 
--- Nested objects
-SELECT name, `details.stock` FROM products WHERE `details.available` = true
+-- Multiple conditions with OR
+SELECT * FROM users WHERE city = 'New York' OR city = 'Los Angeles'
 
--- Array membership
-SELECT * FROM posts WHERE tags CONTAINS 'javascript'
+-- Timestamp comparisons
+SELECT * FROM videos WHERE createdAt > '10-18-2025'
 
--- Collection group queries
-SELECT * FROM GROUP landmarks
-
--- Union queries
-SELECT * FROM users WHERE city = 'New York'
-UNION
-SELECT * FROM users WHERE age > 30
+-- Subcollection queries (after SETDOC)
+SETDOC users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed
+SELECT * FROM posts WHERE type = 'new_public_challenge'
 ```
 
 ## Limitations
 
 - Only `SELECT` queries are supported
 - No `JOIN` operations
-- `LIMIT` doesn't support `OFFSET`
-- No `COUNT` aggregate function
-- `GROUP BY` cannot be combined with `ORDER BY` or `LIMIT`
-- Limited `LIKE` support (only `'value%'` and `'value'` patterns)
+- No `LIMIT` clause support
+- No `GROUP BY` or aggregation functions
+- No `LIKE` pattern matching
+- OR operations are not yet fully supported in complex nested conditions
 - No `NOT` condition support
 
 ## Authentication

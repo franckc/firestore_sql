@@ -5,7 +5,7 @@ const readline = require('readline');
 const fs = require('fs');
 const path = require('path');
 const admin = require('firebase-admin');
-const { FireSQL } = require('firesql');
+const { SQLTranslator } = require('./sql-translator');
 const { executeCountCommand, parseTimestamp } = require('./count');
 
 // CLI configuration
@@ -103,15 +103,15 @@ async function runCLI(projectId) {
   
   const db = admin.firestore();
   
-  // Initialize FireSQL with Admin SDK database reference
-  let fireSQL = new FireSQL(db);
+  // Initialize custom SQL translator with Admin SDK database reference
+  let sqlTranslator = new SQLTranslator(db);
   let currentDocRef = null;
   
-  console.log('✅ FireSQL initialized successfully with Admin SDK!');
+  console.log('✅ Custom SQL translator initialized successfully with Admin SDK!');
   console.log('🔓 Admin SDK bypasses Firestore security rules');
   console.log('🆔 Document IDs are automatically included as "__name__" field in all query results');
   console.log('📜 Query history loaded - use ↑/↓ arrows to navigate past queries');
-  console.log('💡 Type your FQL queries below. Type "exit" or "quit" to stop.');
+  console.log('💡 Type your SQL queries below. Type "exit" or "quit" to stop.');
   console.log('💡 Use "SETDOC <path>" to query a specific document/subcollection.');
   console.log('💡 Use "COUNT <collection | subcollection path> [WHERE <conditions>]" to count documents.');
   console.log('💡 Use "HELP" to see available commands.\n');
@@ -123,7 +123,7 @@ async function runCLI(projectId) {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
-    prompt: 'FQL> ',
+    prompt: 'SQL> ',
     historySize: 100,
     history: queryHistory
   });
@@ -155,7 +155,7 @@ async function runCLI(projectId) {
           // Remove quotes if present
           const cleanPath = docPath.replace(/^['"]|['"]$/g, '');
           currentDocRef = db.doc(cleanPath);
-          fireSQL = new FireSQL(currentDocRef);
+          sqlTranslator = new SQLTranslator(currentDocRef);
           console.log(`📁 Document reference set to: ${cleanPath}`);
           console.log('💡 All subsequent queries will be executed against this document/subcollection.\n');
         } catch (error) {
@@ -180,7 +180,7 @@ async function runCLI(projectId) {
     // Handle RESET command
     if (query.toUpperCase() === 'RESET') {
       currentDocRef = null;
-      fireSQL = new FireSQL(db);
+      sqlTranslator = new SQLTranslator(db);
       console.log('🔄 Reset to database-level queries');
       console.log('💡 All subsequent queries will be executed against the entire database.\n');
       rl.prompt();
@@ -214,15 +214,11 @@ async function runCLI(projectId) {
     }
     
     try {
-      // For now, disable timestamp preprocessing for SELECT queries
-      // as FireSQL has limitations with timestamp comparisons
-      const processedQuery = query; // preprocessSelectQuery(query);
-      
       // Execute the query with document ID included
       console.log('🔄 Executing query...');
       const startTime = Date.now();
       
-      const results = await fireSQL.query(processedQuery, { includeId: true });
+      const results = await sqlTranslator.query(query, { includeId: true });
       
       const endTime = Date.now();
       const executionTime = endTime - startTime;
@@ -235,7 +231,7 @@ async function runCLI(projectId) {
       
     } catch (error) {
       console.error('❌ Query Error:', error.message);
-      console.log('💡 Please check your FQL syntax and try again.\n');
+      console.log('💡 Please check your SQL syntax and try again.\n');
     }
     
     rl.prompt();
@@ -250,10 +246,12 @@ async function runCLI(projectId) {
 function showHelp(currentDocRef) {
   console.log('\n📚 Firestore SQL CLI Commands:');
   console.log('─'.repeat(50));
-  console.log('FQL Queries:');
-  console.log('  SELECT * FROM collection_name LIMIT 10');
+  console.log('SQL Queries:');
+  console.log('  SELECT * FROM collection_name');
   console.log('  SELECT field1, field2 FROM collection_name WHERE condition');
-  console.log('  SELECT * FROM GROUP collection_name  (collection group query)');
+  console.log('  SELECT * FROM collection_name WHERE field = "value" AND other > 10');
+  console.log('  SELECT * FROM collection_name ORDER BY field ASC');
+  console.log('  SELECT * FROM collection_name WHERE field = "value" ORDER BY field DESC');
   console.log('');
   console.log('COUNT Commands:');
   console.log('  COUNT FROM collection_name');
@@ -271,12 +269,17 @@ function showHelp(currentDocRef) {
   console.log('  🔓 Admin SDK bypasses all security rules');
   console.log('  📊 Formatted table output with timing');
   console.log('  📜 Query history - use ↑/↓ arrows to navigate past queries');
+  console.log('  🎯 Custom SQL parser with support for AND/OR conditions');
+  console.log('  📅 Automatic timestamp parsing and type detection');
   console.log('');
   console.log('Examples:');
   console.log('  SETDOC users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed');
   console.log('  SETDOC "users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed"');
   console.log('  SELECT * FROM challenges WHERE state = "active"');
-  console.log('  SELECT __name__, title, description FROM challenges LIMIT 5');
+  console.log('  SELECT __name__, title, description FROM challenges');
+  console.log('  SELECT * FROM users WHERE firstname = "franck"');
+  console.log('  SELECT * FROM videos WHERE userId = "P8RlU12un4UKc0cR1p5DHrtIpdu1" AND createdAt > "10-18-2025"');
+  console.log('  SELECT * FROM videos ORDER BY createdAt DESC');
   console.log('  COUNT FROM users');
   console.log('  COUNT FROM challenges WHERE state = "active"');
   console.log('  COUNT FROM users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed WHERE type = "new_public_challenge"');

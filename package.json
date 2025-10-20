@@ -20,12 +20,11 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "firesql": "^2.0.0",
-    "firebase": "^8.10.1",
-    "firebase-admin": "^12.0.0",
+    "firebase": "^10.14.0",
+    "firebase-admin": "^12.7.0",
     "commander": "^11.1.0"
   },
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=18.0.0"
   }
 }
