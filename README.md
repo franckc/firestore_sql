@@ -9,12 +9,12 @@ A simple command-line tool that allows you to query Google Cloud Firestore using
 - ⚡ Real-time query execution with timing information
 - 🔄 Interactive REPL-style interface
 - 🛡️ Error handling with helpful messages
-- 📁 **SETDOC command** for querying specific documents and subcollections
+- 📁 **Direct collection paths** in FROM clause for subcollection queries
 - 🆘 Built-in help system with command examples
 - 🔓 **Firebase Admin SDK** - Bypasses Firestore security rules for full access
 - 🆔 **Document IDs included** - All queries automatically include document IDs as "id" field
 - 📜 **Query history** - Arrow key navigation through past successful queries
-- 🔢 **COUNT command** - Native Firestore aggregation queries for accurate counting
+- 🔢 **COUNT(*) aggregation** - Native Firestore aggregation queries for accurate counting
 
 ## Installation
 
@@ -95,7 +95,6 @@ id                   | title                | description          | state
 
 **Benefits:**
 - **Easy document identification** - Always know which document you're looking at
-- **Reference for SETDOC** - Use the ID to set document references
 - **Debugging** - Quickly identify specific documents in results
 - **No extra queries needed** - ID is included automatically
 
@@ -123,38 +122,37 @@ Enter           - Execute the selected query
 - **Format**: One query per line, most recent first
 - **Automatic management** - No manual intervention needed
 
-## COUNT Command
+## COUNT(*) Aggregation
 
-The CLI includes a native COUNT command that uses [Firestore's aggregation queries](https://firebase.google.com/docs/firestore/query-data/aggregation-queries#node.js) for accurate counting:
+The CLI supports standard SQL `COUNT(*)` aggregation that uses [Firestore's aggregation queries](https://firebase.google.com/docs/firestore/query-data/aggregation-queries#node.js) for accurate counting:
 
-### 🔢 **COUNT Syntax**
+### 🔢 **COUNT(*) Syntax**
 ```sql
-COUNT FROM <collection> [WHERE <conditions>]
+SELECT COUNT(*) FROM <collection> [WHERE <conditions>]
 ```
 
 ### 📊 **Examples**
 ```sql
 -- Count all documents in a collection
-COUNT FROM users
+SELECT COUNT(*) FROM users
 
 -- Count with single condition
-COUNT FROM challenges WHERE state = "active"
+SELECT COUNT(*) FROM challenges WHERE state = "active"
 
 -- Count with multiple conditions
-COUNT FROM challenges WHERE state = "active" AND type = "public"
+SELECT COUNT(*) FROM challenges WHERE state = "active" AND type = "public"
 
--- Count subcollection documents (after SETDOC)
-SETDOC users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed
-COUNT FROM posts WHERE published = true
+-- Count subcollection documents (direct collection path)
+SELECT COUNT(*) FROM users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed WHERE type = "new_public_challenge"
 
 -- Count with timestamp conditions
-COUNT FROM videos WHERE createdAt > "2025-10-10"
-COUNT FROM videos WHERE createdAt >= "2025-10-10T00:00:00Z"
-COUNT FROM videos WHERE createdAt < "2025-12-31"
-COUNT FROM videos WHERE createdAt <= "2025-12-31T23:59:59Z"
+SELECT COUNT(*) FROM videos WHERE createdAt > "2025-10-10"
+SELECT COUNT(*) FROM videos WHERE createdAt >= "2025-10-10T00:00:00Z"
+SELECT COUNT(*) FROM videos WHERE createdAt < "2025-12-31"
+SELECT COUNT(*) FROM videos WHERE createdAt <= "2025-12-31T23:59:59Z"
 
 -- Count with date range
-COUNT FROM videos WHERE createdAt >= "2025-10-01" AND createdAt < "2025-11-01"
+SELECT COUNT(*) FROM videos WHERE createdAt >= "2025-10-01" AND createdAt < "2025-11-01"
 ```
 
 ### 🎯 **Supported Operators**
@@ -170,27 +168,27 @@ COUNT FROM videos WHERE createdAt >= "2025-10-01" AND createdAt < "2025-11-01"
 - **Fast** - Optimized for large datasets
 
 ### 📅 **Timestamp Support**
-COUNT commands include enhanced timestamp parsing for accurate date comparisons. SELECT commands have limited timestamp support due to FireSQL limitations:
+COUNT(*) queries include enhanced timestamp parsing for accurate date comparisons. SELECT commands have limited timestamp support due to FireSQL limitations:
 
 #### **Supported Timestamp Formats**
 ```sql
--- COUNT queries with timestamps
-COUNT FROM videos WHERE createdAt > "2025-10-10"
-COUNT FROM videos WHERE createdAt > "2025-10-10T00:00:00Z"
-COUNT FROM videos WHERE createdAt > "October 10, 2025"
-COUNT FROM videos WHERE createdAt > "2025-10-10 00:00:00"
-COUNT FROM videos WHERE createdAt <= "2025-12-31T23:59:59Z"
+-- COUNT(*) queries with timestamps
+SELECT COUNT(*) FROM videos WHERE createdAt > "2025-10-10"
+SELECT COUNT(*) FROM videos WHERE createdAt > "2025-10-10T00:00:00Z"
+SELECT COUNT(*) FROM videos WHERE createdAt > "October 10, 2025"
+SELECT COUNT(*) FROM videos WHERE createdAt > "2025-10-10 00:00:00"
+SELECT COUNT(*) FROM videos WHERE createdAt <= "2025-12-31T23:59:59Z"
 
 -- SELECT queries with timestamps (limited support)
 -- Note: FireSQL has limitations with timestamp comparisons
 -- Try these formats to see which works with your data:
 SELECT * FROM videos WHERE createdAt > "2025-10-10"
 SELECT id, title FROM videos WHERE createdAt >= "2025-10-10T00:00:00Z"
--- Alternative: Use COUNT to verify data exists, then SELECT without timestamp filters
+-- Alternative: Use COUNT(*) to verify data exists, then SELECT without timestamp filters
 ```
 
 #### **Timestamp Features**
-- **COUNT Queries** - Full timestamp support with automatic date conversion to proper Date objects
+- **COUNT(*) Queries** - Full timestamp support with automatic date conversion to proper Date objects
 - **SELECT Queries** - Limited support due to FireSQL limitations with Firestore Timestamp comparisons
 - **Multiple Formats** - Supports various date formats including ISO dates, natural language dates, and datetime strings
 - **All Operators** - Works with `>`, `>=`, `<`, `<=`, `=`, and `!=` operators
@@ -198,8 +196,8 @@ SELECT id, title FROM videos WHERE createdAt >= "2025-10-10T00:00:00Z"
 
 #### **Workarounds for SELECT Timestamp Queries**
 ```sql
--- Method 1: Use COUNT to verify data exists first
-COUNT FROM videos WHERE createdAt > "2025-10-10"
+-- Method 1: Use COUNT(*) to verify data exists first
+SELECT COUNT(*) FROM videos WHERE createdAt > "2025-10-10"
 
 -- Method 2: Get recent data and filter manually
 SELECT __name__, createdAt FROM videos ORDER BY createdAt DESC LIMIT 50
@@ -212,16 +210,16 @@ SELECT * FROM videos WHERE createdAt > "2025-10-10T00:00:00Z"
 #### **Common Use Cases**
 ```sql
 -- Count documents created in a specific month
-COUNT FROM videos WHERE createdAt >= "2025-10-01" AND createdAt < "2025-11-01"
+SELECT COUNT(*) FROM videos WHERE createdAt >= "2025-10-01" AND createdAt < "2025-11-01"
 
 -- Count recent documents (last 30 days from a specific date)
-COUNT FROM videos WHERE createdAt >= "2025-09-10" AND createdAt <= "2025-10-10"
+SELECT COUNT(*) FROM videos WHERE createdAt >= "2025-09-10" AND createdAt <= "2025-10-10"
 
 -- Count documents created today
-COUNT FROM videos WHERE createdAt >= "2025-10-10" AND createdAt < "2025-10-11"
+SELECT COUNT(*) FROM videos WHERE createdAt >= "2025-10-10" AND createdAt < "2025-10-11"
 
 -- Count documents with null or missing timestamps
-COUNT FROM videos WHERE createdAt = null
+SELECT COUNT(*) FROM videos WHERE createdAt = null
 
 -- SELECT recent videos with details
 SELECT id, title, createdAt FROM videos WHERE createdAt >= "2025-10-01" ORDER BY createdAt DESC LIMIT 10
@@ -280,20 +278,32 @@ user456              | Bob Johnson          | 35
 user789              | Charlie Wilson       | 32                 
 ────────────────────────────────────────────────────────────────────────────────
 
-FQL> COUNT FROM users
-🔄 Executing COUNT query...
-📊 Count: 21
-⏱️  Query executed in 829ms
+FQL> SELECT COUNT(*) FROM users
+🔄 Executing query...
+📊 Found 1 result(s) in 829ms
+────────────────────────────────────────────────────────────────────────────────
+COUNT(*)            
+────────────────────────────────────────────────────────────────────────────────
+21                  
+────────────────────────────────────────────────────────────────────────────────
 
-FQL> COUNT FROM challenges WHERE state = "active"
-🔄 Executing COUNT query...
-📊 Count: 16
-⏱️  Query executed in 106ms
+FQL> SELECT COUNT(*) FROM challenges WHERE state = "active"
+🔄 Executing query...
+📊 Found 1 result(s) in 106ms
+────────────────────────────────────────────────────────────────────────────────
+COUNT(*)            
+────────────────────────────────────────────────────────────────────────────────
+16                  
+────────────────────────────────────────────────────────────────────────────────
 
-FQL> COUNT FROM videos WHERE createdAt > "2025-10-10"
-🔄 Executing COUNT query...
-📊 Count: 42
-⏱️  Query executed in 89ms
+FQL> SELECT COUNT(*) FROM videos WHERE createdAt > "2025-10-10"
+🔄 Executing query...
+📊 Found 1 result(s) in 89ms
+────────────────────────────────────────────────────────────────────────────────
+COUNT(*)            
+────────────────────────────────────────────────────────────────────────────────
+42                  
+────────────────────────────────────────────────────────────────────────────────
 
 FQL> SELECT id, title FROM videos WHERE createdAt > "2025-10-10" ORDER BY createdAt DESC LIMIT 5
 🔄 Executing query...
@@ -306,18 +316,14 @@ video456             | October Update       | 2025-10-12T14:20:00Z
 video789             | New Feature Demo     | 2025-10-11T09:15:00Z
 ────────────────────────────────────────────────────────────────────────────────
 
-FQL> SETDOC users/P8RlU12un4UKc0cR1p5DHrtIpdu1
-📁 Document reference set to: users/P8RlU12un4UKc0cR1p5DHrtIpdu1
-💡 All subsequent queries will be executed against this document/subcollection.
-
-FQL> COUNT FROM feed WHERE type = "new_public_challenge"
-🔄 Executing COUNT query...
-📊 Count: 3
-⏱️  Query executed in 89ms
-
-FQL> RESET
-🔄 Reset to database-level queries
-💡 All subsequent queries will be executed against the entire database.
+FQL> SELECT COUNT(*) FROM users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed WHERE type = "new_public_challenge"
+🔄 Executing query...
+📊 Found 1 result(s) in 89ms
+────────────────────────────────────────────────────────────────────────────────
+COUNT(*)            
+────────────────────────────────────────────────────────────────────────────────
+3                   
+────────────────────────────────────────────────────────────────────────────────
 
 FQL> HELP
 📚 Firestore SQL CLI Commands:
@@ -328,16 +334,12 @@ SQL Queries:
   SELECT * FROM GROUP collection_name  (collection group query)
 
 Special Commands:
-  SETDOC <path>     - Set document reference for subcollection queries
-  RESET             - Reset to database-level queries
   HELP              - Show this help message
   EXIT/QUIT         - Exit the CLI
 
 Examples:
-  SETDOC users/P8RlU12un4UKc0cR1p5DHrtIpdu1
-  SELECT * FROM feed
-
-📍 Current scope: Database-level queries
+  SELECT * FROM users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed
+  SELECT COUNT(*) FROM posts/postId/comments
 ──────────────────────────────────────────────────
 
 SQL> exit
@@ -346,33 +348,30 @@ SQL> exit
 
 ## Special Commands
 
-### SETDOC Command
+### Available Commands
 
-The `SETDOC` command allows you to query specific documents and their subcollections:
-
-```bash
-SQL> SETDOC users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed
-📁 Document reference set to: users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed
-💡 All subsequent queries will be executed against this document/subcollection.
-
-SQL> SELECT * FROM posts WHERE published = true
-```
-
-**Use cases:**
-- Query subcollections within a specific document
-- Access nested data structures
-- Perform document-scoped operations
-
-**Path formats:**
-- `SETDOC users/userId/feed` - Query the feed subcollection of a specific user
-- `SETDOC "users/userId/feed"` - Same as above, with quotes for paths with special characters
-- `SETDOC posts/postId/comments` - Query comments under a specific post
-
-### Other Commands
-
-- `RESET` - Return to database-level queries
 - `HELP` - Show available commands and examples
 - `EXIT` or `QUIT` - Exit the CLI
+
+### Subcollection Queries
+
+You can query subcollections directly using collection paths in the FROM clause:
+
+```sql
+-- Query a user's feed subcollection
+SELECT * FROM users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed
+
+-- Count comments in a post's subcollection
+SELECT COUNT(*) FROM posts/postId/comments WHERE approved = true
+
+-- Query notifications for a specific user
+SELECT * FROM users/userId/notifications WHERE read = false
+```
+
+**Benefits:**
+- **Direct access** - No need for separate commands
+- **Simpler syntax** - Collection paths work directly in FROM clause
+- **More intuitive** - Standard SQL approach to accessing nested data
 
 ## Supported SQL Features
 
@@ -383,8 +382,10 @@ This custom SQL translator supports:
 - Multiple condition support with `AND` and `OR` operators
 - All comparison operators: `=`, `!=`, `>`, `>=`, `<`, `<=`
 - Automatic type detection (strings, numbers, timestamps, booleans)
-- Subcollection queries via `SETDOC` command
+- `toDate()` function for human-readable timestamp formatting
+- Subcollection queries via direct collection paths in FROM clause
 - Document ID inclusion as `__name__` field
+- **Automatic 'id' to '__name__' conversion** - Use 'id' in queries, automatically converted to '__name__'
 
 ### Examples of supported queries:
 
@@ -407,10 +408,78 @@ SELECT * FROM users WHERE city = 'New York' OR city = 'Los Angeles'
 -- Timestamp comparisons
 SELECT * FROM videos WHERE createdAt > '10-18-2025'
 
--- Subcollection queries (after SETDOC)
-SETDOC users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed
-SELECT * FROM posts WHERE type = 'new_public_challenge'
+-- Subcollection queries (direct collection paths)
+SELECT * FROM users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed WHERE type = 'new_public_challenge'
+SELECT COUNT(*) FROM posts/postId/comments WHERE approved = true
+
+-- Document ID usage (both 'id' and '__name__' work)
+SELECT id, name, email FROM users
+SELECT __name__, toDate(createdAt) FROM users
+
+-- Date formatting with toDate() function
+SELECT name, toDate(updatedAt), email FROM users
+SELECT toDate(createdAt) FROM videos ORDER BY createdAt DESC
 ```
+
+## Document ID Field
+
+### Automatic 'id' to '__name__' Conversion
+
+For user convenience, the SQL translator automatically converts `id` field references to `__name__` (Firestore's document ID field) in all query contexts:
+
+- **SELECT fields**: `SELECT id, name FROM users` → `SELECT __name__, name FROM users`
+- **WHERE conditions**: `SELECT * FROM users WHERE id = "abc123"` → `SELECT * FROM users WHERE __name__ = "abc123"`
+- **ORDER BY clauses**: `SELECT * FROM users ORDER BY id ASC` → `SELECT * FROM users ORDER BY __name__ ASC`
+- **toDate() functions**: `SELECT toDate(id) FROM users` → `SELECT toDate(__name__) FROM users`
+
+### Examples
+
+```sql
+-- All of these work and are automatically converted:
+SELECT id, name, email FROM users
+SELECT * FROM users WHERE id = "user123"
+SELECT * FROM users ORDER BY id DESC
+SELECT toDate(id) FROM users
+
+-- You can still use __name__ directly if preferred:
+SELECT __name__, name, email FROM users
+SELECT * FROM users WHERE __name__ = "user123"
+```
+
+## toDate() Function
+
+The `toDate()` function formats timestamp fields into human-readable date strings in `MM/DD/YY hh:mm:ss` format.
+
+### Usage
+```sql
+SELECT toDate(fieldName) FROM collection_name
+```
+
+### Features
+- **Multiple timestamp types**: Supports Firestore Timestamps, JavaScript Date objects, ISO strings, and Unix timestamps
+- **Local time formatting**: Displays dates in your local timezone
+- **Graceful fallback**: Returns the original value if the field is not a valid date
+- **Null handling**: Returns `null` for missing or null timestamp fields
+
+### Examples
+```sql
+-- Format a single timestamp field
+SELECT toDate(createdAt) FROM users
+
+-- Combine with other fields
+SELECT __name__, name, toDate(createdAt) FROM users
+
+-- Multiple timestamp fields
+SELECT toDate(createdAt), toDate(updatedAt) FROM posts
+
+-- With WHERE conditions
+SELECT toDate(createdAt) FROM videos WHERE userId = 'user123'
+```
+
+### Output Format
+- **Format**: `MM/DD/YY hh:mm:ss`
+- **Example**: `10/19/25 22:38:40`
+- **Timezone**: Local timezone of the system running the CLI
 
 ## Limitations
 

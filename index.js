@@ -6,7 +6,6 @@ const fs = require('fs');
 const path = require('path');
 const admin = require('firebase-admin');
 const { SQLTranslator } = require('./sql-translator');
-const { executeCountCommand, parseTimestamp } = require('./count');
 
 // CLI configuration
 program
@@ -105,15 +104,13 @@ async function runCLI(projectId) {
   
   // Initialize custom SQL translator with Admin SDK database reference
   let sqlTranslator = new SQLTranslator(db);
-  let currentDocRef = null;
   
   console.log('✅ Custom SQL translator initialized successfully with Admin SDK!');
   console.log('🔓 Admin SDK bypasses Firestore security rules');
   console.log('🆔 Document IDs are automatically included as "__name__" field in all query results');
   console.log('📜 Query history loaded - use ↑/↓ arrows to navigate past queries');
   console.log('💡 Type your SQL queries below. Type "exit" or "quit" to stop.');
-  console.log('💡 Use "SETDOC <path>" to query a specific document/subcollection.');
-  console.log('💡 Use "COUNT <collection | subcollection path> [WHERE <conditions>]" to count documents.');
+  console.log('💡 Use collection paths directly in FROM clause (e.g., FROM users/userId/feed).');
   console.log('💡 Use "HELP" to see available commands.\n');
   
   // Load query history
@@ -147,71 +144,15 @@ async function runCLI(projectId) {
       return;
     }
     
-    // Handle special commands
-    if (query.toUpperCase().startsWith('SETDOC ')) {
-      const docPath = query.substring(7).trim();
-      if (docPath) {
-        try {
-          // Remove quotes if present
-          const cleanPath = docPath.replace(/^['"]|['"]$/g, '');
-          currentDocRef = db.doc(cleanPath);
-          sqlTranslator = new SQLTranslator(currentDocRef);
-          console.log(`📁 Document reference set to: ${cleanPath}`);
-          console.log('💡 All subsequent queries will be executed against this document/subcollection.\n');
-        } catch (error) {
-          console.error('❌ Error setting document reference:', error.message);
-          console.log('💡 Please check the document path format.\n');
-        }
-      } else {
-        console.log('❌ Please provide a document path after SETDOC');
-        console.log('💡 Example: SETDOC users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed\n');
-      }
-      rl.prompt();
-      return;
-    }
     
     // Handle HELP command
     if (query.toUpperCase() === 'HELP') {
-      showHelp(currentDocRef);
+      showHelp();
       rl.prompt();
       return;
     }
     
-    // Handle RESET command
-    if (query.toUpperCase() === 'RESET') {
-      currentDocRef = null;
-      sqlTranslator = new SQLTranslator(db);
-      console.log('🔄 Reset to database-level queries');
-      console.log('💡 All subsequent queries will be executed against the entire database.\n');
-      rl.prompt();
-      return;
-    }
     
-    // Handle COUNT command
-    if (query.toUpperCase().startsWith('COUNT ')) {
-      try {
-        console.log('🔄 Executing COUNT query...');
-        const startTime = Date.now();
-        
-        const count = await executeCountCommand(query, db, currentDocRef);
-        
-        const endTime = Date.now();
-        const executionTime = endTime - startTime;
-        
-        // Save successful COUNT command to history
-        saveQueryToHistory(query);
-        
-        // Display count result
-        console.log(`📊 Count: ${count}`);
-        console.log(`⏱️  Query executed in ${executionTime}ms\n`);
-        
-      } catch (error) {
-        console.error('❌ COUNT Error:', error.message);
-        console.log('💡 Please check your COUNT syntax and try again.\n');
-      }
-      rl.prompt();
-      return;
-    }
     
     try {
       // Execute the query with document ID included
@@ -243,7 +184,7 @@ async function runCLI(projectId) {
   });
 }
 
-function showHelp(currentDocRef) {
+function showHelp() {
   console.log('\n📚 Firestore SQL CLI Commands:');
   console.log('─'.repeat(50));
   console.log('SQL Queries:');
@@ -252,43 +193,43 @@ function showHelp(currentDocRef) {
   console.log('  SELECT * FROM collection_name WHERE field = "value" AND other > 10');
   console.log('  SELECT * FROM collection_name ORDER BY field ASC');
   console.log('  SELECT * FROM collection_name WHERE field = "value" ORDER BY field DESC');
-  console.log('');
-  console.log('COUNT Commands:');
-  console.log('  COUNT FROM collection_name');
-  console.log('  COUNT FROM collection_name WHERE field = value');
-  console.log('  COUNT FROM collection_name WHERE field1 = value1 AND field2 > value2');
+  console.log('  SELECT * FROM collection_name ORDER BY field DESC LIMIT 10');
+  console.log('  SELECT id, toDate(createdAt) FROM collection_name');
+  console.log('  SELECT COUNT(*) FROM collection_name');
+  console.log('  SELECT COUNT(*) FROM collection_name WHERE field = value');
   console.log('');
   console.log('Special Commands:');
-  console.log('  SETDOC <path>     - Set document reference for subcollection queries');
-  console.log('  RESET             - Reset to database-level queries');
   console.log('  HELP              - Show this help message');
   console.log('  EXIT/QUIT         - Exit the CLI');
   console.log('');
   console.log('Features:');
   console.log('  🆔 Document IDs automatically included as "__name__" field');
+  console.log('  🔄 Automatic "id" to "__name__" conversion for user convenience');
   console.log('  🔓 Admin SDK bypasses all security rules');
   console.log('  📊 Formatted table output with timing');
   console.log('  📜 Query history - use ↑/↓ arrows to navigate past queries');
   console.log('  🎯 Custom SQL parser with support for AND/OR conditions');
   console.log('  📅 Automatic timestamp parsing and type detection');
+  console.log('  📆 toDate() function for human-readable timestamp formatting');
+  console.log('  🔢 COUNT(*) aggregation support');
+  console.log('  📊 LIMIT clause support for result pagination');
   console.log('');
   console.log('Examples:');
-  console.log('  SETDOC users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed');
-  console.log('  SETDOC "users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed"');
   console.log('  SELECT * FROM challenges WHERE state = "active"');
-  console.log('  SELECT __name__, title, description FROM challenges');
+  console.log('  SELECT id, title, description FROM challenges');
   console.log('  SELECT * FROM users WHERE firstname = "franck"');
   console.log('  SELECT * FROM videos WHERE userId = "P8RlU12un4UKc0cR1p5DHrtIpdu1" AND createdAt > "10-18-2025"');
   console.log('  SELECT * FROM videos ORDER BY createdAt DESC');
-  console.log('  COUNT FROM users');
-  console.log('  COUNT FROM challenges WHERE state = "active"');
-  console.log('  COUNT FROM users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed WHERE type = "new_public_challenge"');
+  console.log('  SELECT * FROM users ORDER BY createdAt DESC LIMIT 5');
+  console.log('  SELECT id, toDate(createdAt) FROM users');
+  console.log('  SELECT name, toDate(updatedAt) FROM posts');
+  console.log('  SELECT COUNT(*) FROM users');
+  console.log('  SELECT COUNT(*) FROM challenges WHERE state = "active"');
+  console.log('  SELECT COUNT(*) FROM users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed WHERE type = "new_public_challenge"');
   console.log('');
-  if (currentDocRef) {
-    console.log(`📍 Current document reference: ${currentDocRef.path}`);
-  } else {
-    console.log('📍 Current scope: Database-level queries');
-  }
+  console.log('💡 Use collection paths directly in FROM clause for subcollections:');
+  console.log('   SELECT * FROM users/userId/feed');
+  console.log('   SELECT COUNT(*) FROM posts/postId/comments');
   console.log('─'.repeat(50));
   console.log('');
 }

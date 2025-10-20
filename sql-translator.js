@@ -53,40 +53,102 @@ class SQLTranslator {
 
     // Parse WHERE clause
     let whereConditions = null;
-    const whereMatch = normalizedSQL.match(/WHERE\s+(.+?)(?:\s+ORDER\s+BY|\s*$)/i);
+    const whereMatch = normalizedSQL.match(/WHERE\s+(.+?)(?:\s+ORDER\s+BY|\s+LIMIT|\s*$)/i);
     if (whereMatch) {
       whereConditions = this.parseWhereConditions(whereMatch[1]);
     }
 
     // Parse ORDER BY clause
     let orderBy = null;
-    const orderByMatch = normalizedSQL.match(/ORDER\s+BY\s+([^\s]+)\s+(ASC|DESC)/i);
+    const orderByMatch = normalizedSQL.match(/ORDER\s+BY\s+([^\s]+)\s+(ASC|DESC)(?:\s+LIMIT|\s*$)/i);
     if (orderByMatch) {
       orderBy = {
-        field: orderByMatch[1],
+        field: this.convertIdToName(orderByMatch[1]),
         direction: orderByMatch[2].toUpperCase()
       };
+    }
+
+    // Parse LIMIT clause
+    let limit = null;
+    const limitMatch = normalizedSQL.match(/LIMIT\s+(\d+)/i);
+    if (limitMatch) {
+      limit = parseInt(limitMatch[1], 10);
+      if (isNaN(limit) || limit < 0) {
+        throw new Error('LIMIT must be a positive integer');
+      }
+    }
+
+    // Validate COUNT(*) queries
+    const isCountQuery = selectFields.length === 1 && 
+                        selectFields[0].type === 'aggregation' && 
+                        selectFields[0].function === 'COUNT';
+    
+    if (isCountQuery) {
+      // COUNT(*) queries cannot have ORDER BY
+      if (orderBy) {
+        throw new Error('ORDER BY is not supported with COUNT(*) queries');
+      }
     }
 
     return {
       select: selectFields,
       from: collectionPath,
       where: whereConditions,
-      orderBy: orderBy
+      orderBy: orderBy,
+      limit: limit
     };
   }
 
   /**
+   * Convert 'id' field references to '__name__' for Firestore compatibility
+   * @param {string} fieldName - Field name to potentially convert
+   * @returns {string} Converted field name
+   */
+  convertIdToName(fieldName) {
+    return fieldName === 'id' ? '__name__' : fieldName;
+  }
+
+  /**
    * Parse SELECT fields
-   * @param {string} fieldsStr - Fields string (e.g., "*" or "field1, field2")
-   * @returns {Array} Array of field names
+   * @param {string} fieldsStr - Fields string (e.g., "*" or "field1, field2" or "toDate(field)" or "COUNT(*)")
+   * @returns {Array} Array of field objects with name and formatting info
    */
   parseSelectFields(fieldsStr) {
-    if (fieldsStr.trim() === '*') {
+    const trimmed = fieldsStr.trim();
+    
+    // Check for COUNT(*) aggregation
+    const countMatch = trimmed.match(/^COUNT\(\*\)$/i);
+    if (countMatch) {
+      return [{
+        type: 'aggregation',
+        function: 'COUNT',
+        field: '*'
+      }];
+    }
+    
+    if (trimmed === '*') {
       return ['*'];
     }
     
-    return fieldsStr.split(',').map(field => field.trim());
+    return fieldsStr.split(',').map(field => {
+      const trimmed = field.trim();
+      
+      // Check for toDate() function
+      const toDateMatch = trimmed.match(/^toDate\(([^)]+)\)$/i);
+      if (toDateMatch) {
+        return {
+          type: 'function',
+          function: 'toDate',
+          field: this.convertIdToName(toDateMatch[1].trim())
+        };
+      }
+      
+      // Regular field
+      return {
+        type: 'field',
+        field: this.convertIdToName(trimmed)
+      };
+    });
   }
 
   /**
@@ -221,7 +283,7 @@ class SQLTranslator {
       throw new Error('Invalid condition format');
     }
     
-    const field = tokens[0];
+    const field = this.convertIdToName(tokens[0]);
     const operator = tokens[1];
     const value = this.parseValue(tokens[2]);
     
@@ -306,6 +368,49 @@ class SQLTranslator {
   }
 
   /**
+   * Format a date/timestamp value to MM/DD/YY hh:mm:ss format
+   * @param {*} value - The value to format (Date, Firestore Timestamp, string, etc.)
+   * @returns {string} Formatted date string or original value if not a date
+   */
+  formatToDate(value) {
+    if (!value) return value;
+    
+    let date;
+    
+    // Handle different timestamp types
+    if (value instanceof Date) {
+      date = value;
+    } else if (value && typeof value === 'object' && value.toDate) {
+      // Firestore Timestamp
+      date = value.toDate();
+    } else if (typeof value === 'string') {
+      // Try to parse string as date
+      date = new Date(value);
+      if (isNaN(date.getTime())) {
+        return value; // Return original if not a valid date
+      }
+    } else if (typeof value === 'number') {
+      // Unix timestamp (seconds or milliseconds)
+      date = new Date(value > 1000000000000 ? value : value * 1000);
+      if (isNaN(date.getTime())) {
+        return value; // Return original if not a valid date
+      }
+    } else {
+      return value; // Return original value if not a date type
+    }
+    
+    // Format as MM/DD/YY hh:mm:ss (using local time)
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const year = String(date.getFullYear()).slice(-2);
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    
+    return `${month}/${day}/${year} ${hours}:${minutes}:${seconds}`;
+  }
+
+  /**
    * Execute parsed query against Firestore
    * @param {Object} parsed - Parsed query object
    * @param {Object} options - Query options
@@ -314,15 +419,17 @@ class SQLTranslator {
   async executeQuery(parsed, options = {}) {
     let query;
     
-    // Handle different types of database references
-    if (this.db.collection) {
-      // This is a Firestore database reference
-      query = this.db.collection(parsed.from);
-    } else if (this.db.path) {
-      // This is a document reference, so we're querying a subcollection
-      query = this.db.collection(parsed.from);
-    } else {
-      throw new Error('Invalid database reference');
+    // Create Firestore collection reference
+    query = this.db.collection(parsed.from);
+    
+    // Check if this is a COUNT(*) query
+    const isCountQuery = parsed.select.length === 1 && 
+                        parsed.select[0].type === 'aggregation' && 
+                        parsed.select[0].function === 'COUNT';
+    
+    if (isCountQuery) {
+      // Handle COUNT(*) aggregation
+      return await this.executeCountQuery(query, parsed.where);
     }
     
     // Apply WHERE conditions
@@ -333,6 +440,11 @@ class SQLTranslator {
     // Apply ORDER BY
     if (parsed.orderBy) {
       query = query.orderBy(parsed.orderBy.field, parsed.orderBy.direction.toLowerCase());
+    }
+    
+    // Apply LIMIT
+    if (parsed.limit) {
+      query = query.limit(parsed.limit);
     }
     
     // Execute query
@@ -351,11 +463,36 @@ class SQLTranslator {
       // Filter fields if not SELECT *
       if (!parsed.select.includes('*')) {
         const filteredData = {};
-        parsed.select.forEach(field => {
-          if (field === '__name__' && options.includeId) {
-            filteredData[field] = doc.id;
-          } else if (data.hasOwnProperty(field)) {
-            filteredData[field] = data[field];
+        parsed.select.forEach(fieldObj => {
+          if (typeof fieldObj === 'string') {
+            // Handle legacy string format for backward compatibility
+            if (fieldObj === '__name__' && options.includeId) {
+              filteredData[fieldObj] = doc.id;
+            } else if (data.hasOwnProperty(fieldObj)) {
+              filteredData[fieldObj] = data[fieldObj];
+            }
+          } else if (fieldObj.type === 'field') {
+            // Regular field
+            if (fieldObj.field === '__name__' && options.includeId) {
+              filteredData[fieldObj.field] = doc.id;
+            } else if (data.hasOwnProperty(fieldObj.field)) {
+              filteredData[fieldObj.field] = data[fieldObj.field];
+            }
+          } else if (fieldObj.type === 'function' && fieldObj.function === 'toDate') {
+            // toDate() function
+            const fieldName = fieldObj.field;
+            const displayName = `toDate(${fieldName})`;
+            
+            if (fieldName === '__name__' && options.includeId) {
+              // Document ID is not a date, so just return it as is
+              filteredData[displayName] = doc.id;
+            } else if (data.hasOwnProperty(fieldName)) {
+              // Format the field value as a date
+              filteredData[displayName] = this.formatToDate(data[fieldName]);
+            } else {
+              // Field doesn't exist, return null
+              filteredData[displayName] = null;
+            }
           }
         });
         results.push(filteredData);
@@ -365,6 +502,32 @@ class SQLTranslator {
     });
     
     return results;
+  }
+
+  /**
+   * Execute COUNT(*) query against Firestore
+   * @param {Object} query - Firestore query object
+   * @param {Object} whereConditions - Parsed WHERE conditions
+   * @returns {Promise<Array>} Query results with count
+   */
+  async executeCountQuery(query, whereConditions) {
+    // Apply WHERE conditions
+    if (whereConditions) {
+      query = this.applyWhereConditions(query, whereConditions);
+    }
+    
+    // Execute count aggregation
+    const aggregateQuery = query.aggregate({
+      count: admin.firestore.AggregateField.count()
+    });
+    
+    const snapshot = await aggregateQuery.get();
+    const count = snapshot.data().count;
+    
+    // Return result in the same format as regular queries
+    return [{
+      'COUNT(*)': count
+    }];
   }
 
   /**
