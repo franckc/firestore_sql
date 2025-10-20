@@ -143,6 +143,16 @@ class SQLTranslator {
         };
       }
       
+      // Check for prettyJson() function
+      const prettyJsonMatch = trimmed.match(/^prettyJson\(([^)]+)\)$/i);
+      if (prettyJsonMatch) {
+        return {
+          type: 'function',
+          function: 'prettyJson',
+          field: this.convertIdToName(prettyJsonMatch[1].trim())
+        };
+      }
+      
       // Regular field
       return {
         type: 'field',
@@ -489,6 +499,25 @@ class SQLTranslator {
             } else if (data.hasOwnProperty(fieldName)) {
               // Format the field value as a date
               filteredData[displayName] = this.formatToDate(data[fieldName]);
+            } else {
+              // Field doesn't exist, return null
+              filteredData[displayName] = null;
+            }
+          } else if (fieldObj.type === 'function' && fieldObj.function === 'prettyJson') {
+            // prettyJson() function
+            const fieldName = fieldObj.field;
+            const displayName = `prettyJson(${fieldName})`;
+            
+            if (fieldName === '*' || fieldName === '__name__') {
+              // For prettyJson(*), format the entire document
+              const fullDoc = { ...data };
+              if (options.includeId) {
+                fullDoc.id = doc.id;
+              }
+              filteredData[displayName] = JSON.stringify(fullDoc, null, 2);
+            } else if (data.hasOwnProperty(fieldName)) {
+              // Format the specific field value as JSON
+              filteredData[displayName] = JSON.stringify(data[fieldName], null, 2);
             } else {
               // Field doesn't exist, return null
               filteredData[displayName] = null;

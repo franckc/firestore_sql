@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# Firestore SQL CLI wrapper script
+# Usage: fsql <project-id>
+
+# Check if project-id is provided
+if [ $# -eq 0 ]; then
+    echo "Error: Project ID is required"
+    echo "Usage: fsql <project-id>"
+    echo "Example: fsql my-firebase-project"
+    exit 1
+fi
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Change to the script directory
+cd "$SCRIPT_DIR"
+
+# Check if index.js exists
+if [ ! -f "index.js" ]; then
+    echo "Error: index.js not found in $SCRIPT_DIR"
+    exit 1
+fi
+
+# Check if node is available
+if ! command -v node &> /dev/null; then
+    echo "Error: Node.js is not installed or not in PATH"
+    exit 1
+fi
+
+# Start the CLI with the provided project-id
+node index.js "$1"

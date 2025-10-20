@@ -14,6 +14,7 @@ SELECT COUNT(*) FROM users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed WHERE type = "new_p
 -- Basic queries
 SELECT * FROM users LIMIT 10
 SELECT id, email, toDate(createdAt) FROM users ORDER BY createdAt DESC LIMIT 5
+SELECT prettyJson(*) FROM users LIMIT 1
 
 -- Subcollection queries (direct collection paths)
 SELECT * FROM users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed
@@ -27,48 +28,44 @@ SELECT name, email FROM users WHERE age > 25
 SELECT * FROM products ORDER BY price DESC LIMIT 5
 SELECT * FROM users ORDER BY createdAt DESC LIMIT 10
 
--- Aggregations
-SELECT category, AVG(price) as avg_price FROM products GROUP BY category
-
--- Nested object access (use backticks for field paths)
-SELECT name, `details.stock` FROM products WHERE `details.available` = true
-
--- Array membership
-SELECT * FROM posts WHERE tags CONTAINS 'javascript'
-
--- Collection group queries
-SELECT * FROM GROUP landmarks
-
--- Union queries
-SELECT * FROM users WHERE city = 'New York'
-UNION
-SELECT * FROM users WHERE age > 30
-
 -- Complex filtering
 SELECT * FROM restaurants 
-WHERE city = 'Chicago' AND (price < 50 OR rating > 4.5)
+WHERE city = 'Chicago' AND price < 50
 ORDER BY rating DESC
 
+-- Multiline queries (end with semicolon)
+SELECT * FROM users
+WHERE age > 25
+ORDER BY createdAt DESC
+LIMIT 10;
+
+SELECT id, email, toDate(createdAt)
+FROM users
+WHERE firstName = "franck"
+ORDER BY createdAt DESC;
+
+SELECT prettyJson(*)
+FROM challenges
+WHERE state = "active"
+LIMIT 1;
+
 -- Using document ID (both 'id' and '__name__' work)
-SELECT id, name, email FROM users
-SELECT __name__ as docId, name, email FROM users
+SELECT id, name, email FROM users;
+SELECT __name__ as docId, name, email FROM users;
 
 -- Document ID in WHERE conditions
-SELECT * FROM users WHERE id = "user123"
-SELECT * FROM posts WHERE id > "post456"
+SELECT * FROM users WHERE id = "user123";
+SELECT * FROM posts WHERE id > "post456";
 
 -- Document ID in ORDER BY
-SELECT * FROM users ORDER BY id ASC
-SELECT * FROM posts ORDER BY id DESC
+SELECT * FROM users ORDER BY id ASC;
+SELECT * FROM posts ORDER BY id DESC;
 
 -- Document ID with toDate() function
-SELECT toDate(id) FROM users
+SELECT toDate(id) FROM users;
 
--- Pattern matching (limited LIKE support)
-SELECT * FROM users WHERE name LIKE 'John%'
+-- JSON formatting functions
+SELECT prettyJson(*) FROM users LIMIT 1;
+SELECT prettyJson(metadata) FROM posts;
+SELECT prettyJson(*) FROM challenges WHERE state = "active" LIMIT 1;
 
--- Range queries
-SELECT * FROM products WHERE price BETWEEN 10 AND 100
-
--- IN queries
-SELECT * FROM users WHERE city IN ('New York', 'Los Angeles', 'Chicago')

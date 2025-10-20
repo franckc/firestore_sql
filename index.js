@@ -23,7 +23,7 @@ program
   });
 
 // Query history management
-const HISTORY_FILE = 'query_history.txt';
+const HISTORY_FILE = `${process.env.HOME}/.fsql_history`;
 const MAX_HISTORY_SIZE = 100;
 
 program.parse();
@@ -125,57 +125,87 @@ async function runCLI(projectId) {
     history: queryHistory
   });
   
+  // Multiline query support
+  let currentQuery = '';
+  let isMultiline = false;
+  
   rl.prompt();
   
   // Interactive query loop
   rl.on('line', async (input) => {
-    const query = input.trim();
+    const line = input.trim();
     
-    // Check for exit commands
-    if (query.toLowerCase() === 'exit' || query.toLowerCase() === 'quit') {
+    // Check for exit commands (only on first line or when query is empty)
+    if ((!isMultiline || currentQuery === '') && (line.toLowerCase() === 'exit' || line.toLowerCase() === 'quit')) {
       console.log('👋 Goodbye!');
       rl.close();
       return;
     }
     
-    // Skip empty queries
-    if (query === '') {
+    // Skip empty lines in multiline mode
+    if (line === '' && isMultiline) {
+      rl.setPrompt('... ');
       rl.prompt();
       return;
     }
     
+    // Skip empty queries
+    if (line === '' && !isMultiline) {
+      rl.prompt();
+      return;
+    }
     
-    // Handle HELP command
-    if (query.toUpperCase() === 'HELP') {
+    // Handle HELP command (only on first line)
+    if (!isMultiline && line.toUpperCase() === 'HELP') {
       showHelp();
       rl.prompt();
       return;
     }
     
-    
-    
-    try {
-      // Execute the query with document ID included
-      console.log('🔄 Executing query...');
-      const startTime = Date.now();
-      
-      const results = await sqlTranslator.query(query, { includeId: true });
-      
-      const endTime = Date.now();
-      const executionTime = endTime - startTime;
-      
-      // Save successful query to history
-      saveQueryToHistory(query);
-      
-      // Display results
-      displayResults(results, executionTime);
-      
-    } catch (error) {
-      console.error('❌ Query Error:', error.message);
-      console.log('💡 Please check your SQL syntax and try again.\n');
+    // Accumulate query lines
+    if (currentQuery === '') {
+      currentQuery = line;
+    } else {
+      currentQuery += ' ' + line;
     }
     
-    rl.prompt();
+    // Check if query ends with semicolon
+    if (currentQuery.endsWith(';')) {
+      // Remove semicolon and execute query
+      const query = currentQuery.slice(0, -1).trim();
+      
+      try {
+        // Execute the query with document ID included
+        console.log('🔄 Executing query...');
+        const startTime = Date.now();
+        
+        const results = await sqlTranslator.query(query, { includeId: true });
+        
+        const endTime = Date.now();
+        const executionTime = endTime - startTime;
+        
+        // Save successful query to history
+        saveQueryToHistory(query);
+        
+        // Display results
+        displayResults(results, executionTime);
+        
+      } catch (error) {
+        console.error('❌ Query Error:', error.message);
+        console.log('💡 Please check your SQL syntax and try again.\n');
+      }
+      
+      // Reset for next query
+      currentQuery = '';
+      isMultiline = false;
+      rl.setPrompt('SQL> ');
+      rl.prompt();
+    } else {
+      // Continue multiline input
+      isMultiline = true;
+      rl.setPrompt('... ');
+      rl.prompt();
+    }
   });
   
   rl.on('close', () => {
@@ -195,6 +225,7 @@ function showHelp() {
   console.log('  SELECT * FROM collection_name WHERE field = "value" ORDER BY field DESC');
   console.log('  SELECT * FROM collection_name ORDER BY field DESC LIMIT 10');
   console.log('  SELECT id, toDate(createdAt) FROM collection_name');
+  console.log('  SELECT prettyJson(*) FROM collection_name LIMIT 1');
   console.log('  SELECT COUNT(*) FROM collection_name');
   console.log('  SELECT COUNT(*) FROM collection_name WHERE field = value');
   console.log('');
@@ -211,8 +242,10 @@ function showHelp() {
   console.log('  🎯 Custom SQL parser with support for AND/OR conditions');
   console.log('  📅 Automatic timestamp parsing and type detection');
   console.log('  📆 toDate() function for human-readable timestamp formatting');
+  console.log('  🎨 prettyJson() function for formatted JSON output');
   console.log('  🔢 COUNT(*) aggregation support');
   console.log('  📊 LIMIT clause support for result pagination');
+  console.log('  📝 Multiline query support - end with semicolon (;) to execute');
   console.log('');
   console.log('Examples:');
   console.log('  SELECT * FROM challenges WHERE state = "active"');
@@ -222,6 +255,7 @@ function showHelp() {
   console.log('  SELECT * FROM videos ORDER BY createdAt DESC');
   console.log('  SELECT * FROM users ORDER BY createdAt DESC LIMIT 5');
   console.log('  SELECT id, toDate(createdAt) FROM users');
+  console.log('  SELECT prettyJson(*) FROM users LIMIT 1');
   console.log('  SELECT name, toDate(updatedAt) FROM posts');
   console.log('  SELECT COUNT(*) FROM users');
   console.log('  SELECT COUNT(*) FROM challenges WHERE state = "active"');
@@ -230,6 +264,11 @@ function showHelp() {
   console.log('💡 Use collection paths directly in FROM clause for subcollections:');
   console.log('   SELECT * FROM users/userId/feed');
   console.log('   SELECT COUNT(*) FROM posts/postId/comments');
+  console.log('');
+  console.log('💡 Multiline queries - end with semicolon (;) to execute:');
+  console.log('   SQL> SELECT * FROM users');
+  console.log('   ... WHERE age > 25');
+  console.log('   ... ORDER BY createdAt DESC;');
   console.log('─'.repeat(50));
   console.log('');
 }
