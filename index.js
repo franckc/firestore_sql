@@ -120,7 +120,7 @@ async function runCLI(projectId) {
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
-    prompt: 'SQL> ',
+    prompt: 'FSQL> ',
     historySize: 100,
     history: queryHistory
   });
@@ -198,7 +198,7 @@ async function runCLI(projectId) {
       // Reset for next query
       currentQuery = '';
       isMultiline = false;
-      rl.setPrompt('SQL> ');
+      rl.setPrompt('FSQL> ');
       rl.prompt();
     } else {
       // Continue multiline input
@@ -217,7 +217,7 @@ async function runCLI(projectId) {
 function showHelp() {
   console.log('\n📚 Firestore SQL CLI Commands:');
   console.log('─'.repeat(50));
-  console.log('SQL Queries:');
+  console.log('FSQL Queries:');
   console.log('  SELECT * FROM collection_name');
   console.log('  SELECT field1, field2 FROM collection_name WHERE condition');
   console.log('  SELECT * FROM collection_name WHERE field = "value" AND other > 10');
@@ -266,7 +266,7 @@ function showHelp() {
   console.log('   SELECT COUNT(*) FROM posts/postId/comments');
   console.log('');
   console.log('💡 Multiline queries - end with semicolon (;) to execute:');
-  console.log('   SQL> SELECT * FROM users');
+  console.log('   FSQL> SELECT * FROM users');
   console.log('   ... WHERE age > 25');
   console.log('   ... ORDER BY createdAt DESC;');
   console.log('─'.repeat(50));

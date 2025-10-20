@@ -116,7 +116,7 @@ This CLI uses the **Firebase Admin SDK** instead of the client SDK, which provid
 All queries automatically include document IDs as the `id` field:
 
 ```sql
-SQL> SELECT * FROM challenges LIMIT 1;
+FSQL> SELECT * FROM challenges LIMIT 1;
 📊 Found 1 result(s) in 89ms
 ────────────────────────────────────────────────────────────────────────────────
 id                   | title                | description          | state             
@@ -296,7 +296,7 @@ This will start an interactive session where you can enter SQL queries:
 ✅ FireSQL initialized successfully!
 💡 Type your SQL queries below. Type "exit" or "quit" to stop.
 
-SQL> SELECT * FROM users LIMIT 5;
+FSQL> SELECT * FROM users LIMIT 5;
 🔄 Executing query...
 📊 Found 5 result(s) in 234ms
 ────────────────────────────────────────────────────────────────────────────────
@@ -369,7 +369,7 @@ COUNT(*)
 FQL> HELP
 📚 Firestore SQL CLI Commands:
 ──────────────────────────────────────────────────
-SQL Queries:
+FSQL Queries:
   SELECT * FROM collection_name LIMIT 10;
   SELECT field1, field2 FROM collection_name WHERE condition;
 
@@ -382,7 +382,7 @@ Examples:
   SELECT COUNT(*) FROM posts/postId/comments;
 ──────────────────────────────────────────────────
 
-SQL> exit
+FSQL> exit
 👋 Goodbye!
 ```
 
