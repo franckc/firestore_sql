@@ -148,6 +148,15 @@ COUNT FROM challenges WHERE state = "active" AND type = "public"
 -- Count subcollection documents (after SETDOC)
 SETDOC users/P8RlU12un4UKc0cR1p5DHrtIpdu1/feed
 COUNT FROM posts WHERE published = true
+
+-- Count with timestamp conditions
+COUNT FROM videos WHERE createdAt > "2025-10-10"
+COUNT FROM videos WHERE createdAt >= "2025-10-10T00:00:00Z"
+COUNT FROM videos WHERE createdAt < "2025-12-31"
+COUNT FROM videos WHERE createdAt <= "2025-12-31T23:59:59Z"
+
+-- Count with date range
+COUNT FROM videos WHERE createdAt >= "2025-10-01" AND createdAt < "2025-11-01"
 ```
 
 ### 🎯 **Supported Operators**
@@ -161,6 +170,70 @@ COUNT FROM posts WHERE published = true
 - **Efficient** - No need to fetch all documents to count them
 - **Accurate** - Server-side counting, not client-side approximation
 - **Fast** - Optimized for large datasets
+
+### 📅 **Timestamp Support**
+COUNT commands include enhanced timestamp parsing for accurate date comparisons. SELECT commands have limited timestamp support due to FireSQL limitations:
+
+#### **Supported Timestamp Formats**
+```sql
+-- COUNT queries with timestamps
+COUNT FROM videos WHERE createdAt > "2025-10-10"
+COUNT FROM videos WHERE createdAt > "2025-10-10T00:00:00Z"
+COUNT FROM videos WHERE createdAt > "October 10, 2025"
+COUNT FROM videos WHERE createdAt > "2025-10-10 00:00:00"
+COUNT FROM videos WHERE createdAt <= "2025-12-31T23:59:59Z"
+
+-- SELECT queries with timestamps (limited support)
+-- Note: FireSQL has limitations with timestamp comparisons
+-- Try these formats to see which works with your data:
+SELECT * FROM videos WHERE createdAt > "2025-10-10"
+SELECT id, title FROM videos WHERE createdAt >= "2025-10-10T00:00:00Z"
+-- Alternative: Use COUNT to verify data exists, then SELECT without timestamp filters
+```
+
+#### **Timestamp Features**
+- **COUNT Queries** - Full timestamp support with automatic date conversion to proper Date objects
+- **SELECT Queries** - Limited support due to FireSQL limitations with Firestore Timestamp comparisons
+- **Multiple Formats** - Supports various date formats including ISO dates, natural language dates, and datetime strings
+- **All Operators** - Works with `>`, `>=`, `<`, `<=`, `=`, and `!=` operators
+- **Quoted Values** - Always wrap timestamp values in quotes (single or double)
+
+#### **Workarounds for SELECT Timestamp Queries**
+```sql
+-- Method 1: Use COUNT to verify data exists first
+COUNT FROM videos WHERE createdAt > "2025-10-10"
+
+-- Method 2: Get recent data and filter manually
+SELECT __name__, createdAt FROM videos ORDER BY createdAt DESC LIMIT 50
+
+-- Method 3: Try different timestamp formats
+SELECT * FROM videos WHERE createdAt > "2025-10-10"
+SELECT * FROM videos WHERE createdAt > "2025-10-10T00:00:00Z"
+```
+
+#### **Common Use Cases**
+```sql
+-- Count documents created in a specific month
+COUNT FROM videos WHERE createdAt >= "2025-10-01" AND createdAt < "2025-11-01"
+
+-- Count recent documents (last 30 days from a specific date)
+COUNT FROM videos WHERE createdAt >= "2025-09-10" AND createdAt <= "2025-10-10"
+
+-- Count documents created today
+COUNT FROM videos WHERE createdAt >= "2025-10-10" AND createdAt < "2025-10-11"
+
+-- Count documents with null or missing timestamps
+COUNT FROM videos WHERE createdAt = null
+
+-- SELECT recent videos with details
+SELECT id, title, createdAt FROM videos WHERE createdAt >= "2025-10-01" ORDER BY createdAt DESC LIMIT 10
+
+-- SELECT videos from a specific date range
+SELECT * FROM videos WHERE createdAt >= "2025-10-01" AND createdAt < "2025-11-01" AND published = true
+
+-- SELECT videos created today
+SELECT id, title FROM videos WHERE createdAt >= "2025-10-10" AND createdAt < "2025-10-11"
+```
 
 ## Usage
 
@@ -218,6 +291,22 @@ FQL> COUNT FROM challenges WHERE state = "active"
 🔄 Executing COUNT query...
 📊 Count: 16
 ⏱️  Query executed in 106ms
+
+FQL> COUNT FROM videos WHERE createdAt > "2025-10-10"
+🔄 Executing COUNT query...
+📊 Count: 42
+⏱️  Query executed in 89ms
+
+FQL> SELECT id, title FROM videos WHERE createdAt > "2025-10-10" ORDER BY createdAt DESC LIMIT 5
+🔄 Executing query...
+📊 Found 5 result(s) in 156ms
+────────────────────────────────────────────────────────────────────────────────
+id                   | title                | createdAt            
+────────────────────────────────────────────────────────────────────────────────
+video123             | Latest Video         | 2025-10-15T10:30:00Z
+video456             | October Update       | 2025-10-12T14:20:00Z
+video789             | New Feature Demo     | 2025-10-11T09:15:00Z
+────────────────────────────────────────────────────────────────────────────────
 
 FQL> SETDOC users/P8RlU12un4UKc0cR1p5DHrtIpdu1
 📁 Document reference set to: users/P8RlU12un4UKc0cR1p5DHrtIpdu1

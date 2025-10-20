@@ -157,8 +157,8 @@ function splitByAnd(clause) {
  * @returns {Object|null} - Condition object or null if invalid
  */
 function parseSingleCondition(condition) {
-  // Supported operators
-  const operators = ['=', '!=', '<', '<=', '>', '>=', 'IN', 'NOT IN', 'ARRAY_CONTAINS', 'ARRAY_CONTAINS_ANY'];
+  // Supported operators (ordered by length, longest first to avoid partial matches)
+  const operators = ['NOT IN', 'ARRAY_CONTAINS_ANY', 'ARRAY_CONTAINS', '<=', '>=', '!=', 'IN', '=', '<', '>'];
   
   // Try to find an operator
   for (const op of operators) {
@@ -197,11 +197,39 @@ function parseSingleCondition(condition) {
 }
 
 /**
+ * Parse a timestamp value from string
+ * @param {string} value - The timestamp string
+ * @returns {Date|null} - Parsed Date object or null if invalid
+ */
+function parseTimestamp(value) {
+  // Remove surrounding quotes if present
+  const cleanValue = (value.startsWith('"') && value.endsWith('"')) || 
+                     (value.startsWith("'") && value.endsWith("'")) 
+                     ? value.slice(1, -1) : value;
+  
+  // Try to parse as Date
+  const date = new Date(cleanValue);
+  
+  // Check if the date is valid
+  if (!isNaN(date.getTime())) {
+    return date;
+  }
+  
+  return null;
+}
+
+/**
  * Parse a value from string, handling quotes and types
  * @param {string} value - The value string
  * @returns {*} - Parsed value or null if invalid
  */
 function parseValue(value) {
+  // Try to parse as timestamp/date first (before removing quotes)
+  const timestampValue = parseTimestamp(value);
+  if (timestampValue !== null) {
+    return timestampValue;
+  }
+  
   // Remove surrounding quotes if present
   if ((value.startsWith('"') && value.endsWith('"')) || 
       (value.startsWith("'") && value.endsWith("'"))) {
@@ -254,5 +282,6 @@ function mapOperator(op) {
 
 module.exports = {
   executeCountCommand,
-  parseCountCommand
+  parseCountCommand,
+  parseTimestamp
 };

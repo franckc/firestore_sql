@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const admin = require('firebase-admin');
 const { FireSQL } = require('firesql');
-const { executeCountCommand } = require('./count');
+const { executeCountCommand, parseTimestamp } = require('./count');
 
 // CLI configuration
 program
@@ -61,6 +61,32 @@ function saveQueryToHistory(query) {
   } catch (error) {
     console.log('⚠️  Could not save query to history:', error.message);
   }
+}
+
+/**
+ * Preprocess SELECT queries to handle timestamp values
+ * @param {string} query - The SQL query string
+ * @returns {string} - The processed query with timestamp values converted
+ */
+function preprocessSelectQuery(query) {
+  // Look for WHERE clauses with timestamp comparisons
+  // Pattern: WHERE field operator "timestamp_value"
+  const timestampPattern = /WHERE\s+(\w+)\s*([><=!]+)\s*(["'][^"']*["'])/gi;
+  
+  return query.replace(timestampPattern, (match, field, operator, value) => {
+    // Try to parse the value as a timestamp
+    const timestampValue = parseTimestamp(value);
+    
+    if (timestampValue !== null) {
+      // Try using a simple ISO string format that FireSQL might recognize
+      // This is more likely to work with FireSQL's SQL parser
+      const isoString = timestampValue.toISOString();
+      return `WHERE ${field} ${operator} "${isoString}"`;
+    }
+    
+    // If not a valid timestamp, return the original match
+    return match;
+  });
 }
 
 async function runCLI(projectId) {
@@ -188,11 +214,15 @@ async function runCLI(projectId) {
     }
     
     try {
+      // For now, disable timestamp preprocessing for SELECT queries
+      // as FireSQL has limitations with timestamp comparisons
+      const processedQuery = query; // preprocessSelectQuery(query);
+      
       // Execute the query with document ID included
       console.log('🔄 Executing query...');
       const startTime = Date.now();
       
-      const results = await fireSQL.query(query, { includeId: true });
+      const results = await fireSQL.query(processedQuery, { includeId: true });
       
       const endTime = Date.now();
       const executionTime = endTime - startTime;
