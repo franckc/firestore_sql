@@ -44,7 +44,7 @@ class SQLTranslator {
     const selectFields = this.parseSelectFields(selectMatch[1]);
 
     // Parse FROM clause
-    const fromMatch = normalizedSQL.match(/FROM\s+([^\s]+(?:\s+[^\s]+)*?)(?:\s+WHERE|\s+ORDER\s+BY|\s*$)/i);
+    const fromMatch = normalizedSQL.match(/FROM\s+([^\s]+(?:\s+[^\s]+)*?)(?:\s+WHERE|\s+ORDER\s+BY|\s+LIMIT|\s*$)/i);
     if (!fromMatch) {
       throw new Error('Invalid FROM syntax');
     }

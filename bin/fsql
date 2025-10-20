@@ -14,12 +14,12 @@ fi
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Change to the script directory
-cd "$SCRIPT_DIR"
+# Change to the parent directory (project root) where index.js is located
+cd "$SCRIPT_DIR/.."
 
 # Check if index.js exists
 if [ ! -f "index.js" ]; then
-    echo "Error: index.js not found in $SCRIPT_DIR"
+    echo "Error: index.js not found in $(pwd)"
     exit 1
 fi
 
